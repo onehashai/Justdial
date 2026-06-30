@@ -29,6 +29,7 @@ CUSTOM_FIELDS = [
         "insert_after": "leadid",
         "label": "Lead Type",
         "name": "Lead-type_of_lead",
+        "read_only": 1,
     },
     {
         "dt": "Lead",
@@ -37,6 +38,7 @@ CUSTOM_FIELDS = [
         "insert_after": "type_of_lead",
         "label": "Justdial Category",
         "name": "Lead-category",
+        "read_only": 1,
     },
     {
         "dt": "Lead",
@@ -53,6 +55,7 @@ CUSTOM_FIELDS = [
         "label": "Lead Date",
         "name": "Lead-date",
         "also_satisfied_by": ["custom_date"],
+        "read_only": 1,
     },
     {
         "dt": "Lead",
@@ -62,6 +65,7 @@ CUSTOM_FIELDS = [
         "label": "Lead Time",
         "name": "Lead-time",
         "also_satisfied_by": ["custom_time"],
+        "read_only": 1,
     },
     {
         "dt": "Lead",
@@ -71,6 +75,7 @@ CUSTOM_FIELDS = [
         "label": "Parent/Contract ID",
         "name": "Lead-parentid",
         "no_copy": 1,
+        "read_only": 1,
     },
     {
         "dt": "Lead",
@@ -79,6 +84,7 @@ CUSTOM_FIELDS = [
         "insert_after": "parentid",
         "label": "Mobile in DND",
         "name": "Lead-dncmobile",
+        "read_only": 1,
     },
     {
         "dt": "Lead",
@@ -87,6 +93,7 @@ CUSTOM_FIELDS = [
         "insert_after": "dncmobile",
         "label": "Phone in DND",
         "name": "Lead-dncphone",
+        "read_only": 1,
     },
     {
         "dt": "Lead",
@@ -110,19 +117,12 @@ def add_custom_fields_to_lead():
     meta = frappe.get_meta("Lead")
 
     for field in CUSTOM_FIELDS:
-        field = dict(field)  # don't mutate the module-level CUSTOM_FIELDS
+        field = dict(field)
         alternate_names = field.pop("also_satisfied_by", [])
 
-        # Skip if a field with this exact fieldname already exists (core,
-        # custom, or from another app) -- has_field checks the doctype's
-        # full effective schema.
         if meta.has_field(field["fieldname"]):
             continue
 
-        # Skip if a field already exists under a *different* name but
-        # serves the same purpose (e.g. someone manually added
-        # "custom_date" before this script ran). We only check, we never
-        # touch or remove that other field -- it's left exactly as is.
         if any(meta.has_field(alt) for alt in alternate_names):
             continue
 
