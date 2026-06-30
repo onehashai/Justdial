@@ -114,26 +114,32 @@ def create_or_update_address(lead_name, address_data, lead_title):
            WHERE link_doctype = 'Lead' AND link_name = %s AND parenttype = 'Address'""",
         lead_name,
     )
- 
+
     if existing_address:
         address = frappe.get_doc("Address", existing_address[0][0])
     else:
         address = frappe.new_doc("Address")
- 
+
     address.address_title = f"{lead_title}" if lead_title else f"Lead {lead_name}"
     address.city = address_data.get("city", "")
     address.pincode = address_data.get("pincode", "")
     address.address_line1 = address_data.get("area", "")
     address.address_line2 = address_data.get("branch_area", "")
     address.address_type = "Other"
- 
+
+    # Populate state to satisfy sites where it's mandatory on Address
+    if address.city:
+        state = frappe.db.get_value("City", {"title": address.city}, "state")
+        if state:
+            address.state = state
+
     if not existing_address:
         address.append("links", {
             "link_doctype": "Lead",
             "link_name": lead_name,
             "link_title": lead_title,
         })
- 
+
     if existing_address:
         address.save(ignore_permissions=True)
     else:
