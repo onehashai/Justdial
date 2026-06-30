@@ -120,18 +120,29 @@ def create_or_update_address(lead_name, address_data, lead_title):
     else:
         address = frappe.new_doc("Address")
 
+    city_name = address_data.get("city", "")
+
     address.address_title = f"{lead_title}" if lead_title else f"Lead {lead_name}"
-    address.city = address_data.get("city", "")
+    address.city = city_name
     address.pincode = address_data.get("pincode", "")
     address.address_line1 = address_data.get("area", "")
     address.address_line2 = address_data.get("branch_area", "")
     address.address_type = "Other"
 
-    # Populate state to satisfy sites where it's mandatory on Address
-    if address.city:
-        state = frappe.db.get_value("City", {"title": address.city}, "state")
-        if state:
-            address.state = state
+    # Some sites (this one included) use custom Link fields instead of, or
+    # alongside, the standard city/state fields, populated client-side via
+    # a before_save script that doesn't run during this server-side call.
+    # Set them directly here when present, so the save doesn't fail.
+    meta = frappe.get_meta("Address")
+
+    if meta.has_field("custom_location") and city_name:
+        if frappe.db.exists("City", city_name):
+            address.custom_location = city_name
+
+    if meta.has_field("custom_states") and city_name:
+        state = frappe.db.get_value("City", {"title": city_name}, "state")
+        if state and frappe.db.exists("Territory", state):
+            address.custom_states = state
 
     if not existing_address:
         address.append("links", {
