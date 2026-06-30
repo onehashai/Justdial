@@ -129,9 +129,7 @@ def create_or_update_address(lead_name, address_data, lead_title):
     address.address_line2 = address_data.get("branch_area", "")
     address.address_type = "Other"
 
-    # Some sites (this one included) use custom Link fields instead of, or
-    # alongside, the standard city/state fields, populated client-side via
-    # a before_save script that doesn't run during this server-side call.
+    # Some sites (this one included) use custom Link fields instead of, or alongside, the standard city/state fields.
     # Set them directly here when present, so the save doesn't fail.
     meta = frappe.get_meta("Address")
 
