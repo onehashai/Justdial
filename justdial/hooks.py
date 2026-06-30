@@ -85,6 +85,8 @@ app_license = "mit"
 # before_install = "justdial.install.before_install"
 # after_install = "justdial.install.after_install"
 after_install = "justdial.api.justdial_api.create_justdial_lead_source"
+after_install = "justdial.install.after_install"
+before_uninstall = "justdial.install.before_uninstall"
 
 # Uninstallation
 # ------------
