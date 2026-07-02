@@ -25,27 +25,27 @@ def capture_lead(**kwargs):
         if frappe.request and frappe.request.data:
             try:
                 data = json.loads(frappe.request.data)
-            except:
+            except Exception:
                 data = frappe.form_dict
         else:
             data = frappe.form_dict
-        
+ 
         mobile = data.get("mobile", "")
         phone = data.get("phone", "")
-        
+ 
         existing_lead = None
-        
+ 
         if mobile:
             existing_lead = frappe.db.get_value("Lead", {"mobile_no": mobile}, "name")
-            
+ 
         if not existing_lead and phone:
             existing_lead = frappe.db.get_value("Lead", {"phone": phone}, "name")
-        
+ 
         if existing_lead:
             lead = frappe.get_doc("Lead", existing_lead)
         else:
             lead = frappe.new_doc("Lead")
-            
+ 
         lead.lead_name = data.get("name", "")
         lead.company_name = data.get("company", "")
         lead.mobile_no = mobile
@@ -56,72 +56,100 @@ def capture_lead(**kwargs):
         lead.category = data.get("category", "")
         lead.date = data.get("date", "")
         lead.time = data.get("time", "")
-        lead.parent_id = data.get("parent_id", "")
-
+        lead.leadid = data.get("leadid", "")
+        lead.parentid = data.get("parentid", "")
+ 
         city_name = data.get("city", "")
-
+ 
         if city_name:
             lead.city = city_name
             city_doc = frappe.db.get_value("City", {"title": city_name}, "state")
             if city_doc:
                 lead.state = city_doc
-
+ 
         if lead.source == "Justdial":
             lead_meta = frappe.get_meta("Lead")
             has_custom_lead_type = lead_meta.has_field("custom_justdial_lead_type")
-            
+ 
             if has_custom_lead_type:
                 if lead.category and "services" in lead.category.lower():
                     lead.custom_justdial_lead_type = "Prototype"
                 else:
                     lead.custom_justdial_lead_type = "Sales"
-        
+ 
         if existing_lead:
             lead.save(ignore_permissions=True)
         else:
             lead.insert(ignore_permissions=True)
-            
+ 
         frappe.db.commit()
-        
-        return "RECEIVED"
-        
-    except Exception as e:
-        frappe.log_error("Error processing lead", str(e))
-        frappe.db.rollback()
-        return "ERROR"
 
+        address_data = {
+            "city": data.get("city", ""),
+            "area": data.get("area", ""),
+            "branch_area": data.get("brancharea", ""),
+            "pincode": data.get("branchpin", ""),
+        }
+ 
+        if any(address_data.values()):
+            try:
+                create_or_update_address(lead.name, address_data, lead.lead_name)
+                frappe.db.commit()
+            except Exception:
+                frappe.log_error(
+                    title="Justdial Address Save Error",
+                    message=frappe.get_traceback(),
+                )
+ 
+        return "RECEIVED"
+ 
+    except Exception:
+        frappe.log_error(title="Justdial Lead Capture Error", message=frappe.get_traceback())
+        return "ERROR"
+ 
+ 
 def create_or_update_address(lead_name, address_data, lead_title):
-    try:
-        existing_address = frappe.db.sql(
-            """SELECT parent FROM `tabDynamic Link` 
-               WHERE link_doctype = 'Lead' AND link_name = %s AND parenttype = 'Address'""",
-            lead_name
-        )
-        
-        if existing_address:
-            address = frappe.get_doc("Address", existing_address[0][0])
-        else:
-            address = frappe.new_doc("Address")
-            
-        address.address_title = f"{lead_title}" if lead_title else f"Lead {lead_name}"
-        address.city = address_data.get("city", "")
-        address.pincode = address_data.get("pincode", "")
-        address.address_line1 = address_data.get("area", "")
-        address.address_line2 = address_data.get("branch_area", "")
-        address.address_type = "Other"
-        
-        if not existing_address:
-            address.append("links", {
-                "link_doctype": "Lead",
-                "link_name": lead_name,
-                "link_title": lead_title
-            })
-        
-        if existing_address:
-            address.save(ignore_permissions=True)
-        else:
-            address.insert(ignore_permissions=True)
-            
-    except Exception as e:
-        frappe.log_error("Error creating/updating address", str(e))
-        raise e
+    existing_address = frappe.db.sql(
+        """SELECT parent FROM `tabDynamic Link`
+           WHERE link_doctype = 'Lead' AND link_name = %s AND parenttype = 'Address'""",
+        lead_name,
+    )
+
+    if existing_address:
+        address = frappe.get_doc("Address", existing_address[0][0])
+    else:
+        address = frappe.new_doc("Address")
+
+    city_name = address_data.get("city", "")
+
+    address.address_title = f"{lead_title}" if lead_title else f"Lead {lead_name}"
+    address.city = city_name
+    address.pincode = address_data.get("pincode", "")
+    address.address_line1 = address_data.get("area", "")
+    address.address_line2 = address_data.get("branch_area", "")
+    address.address_type = "Other"
+
+    # Some sites (this one included) use custom Link fields instead of, or alongside, the standard city/state fields.
+    # Set them directly here when present, so the save doesn't fail.
+    meta = frappe.get_meta("Address")
+
+    if meta.has_field("custom_location") and city_name:
+        if frappe.db.exists("City", city_name):
+            address.custom_location = city_name
+
+    if meta.has_field("custom_states") and city_name:
+        state = frappe.db.get_value("City", {"title": city_name}, "state")
+        if state and frappe.db.exists("Territory", state):
+            address.custom_states = state
+
+    if not existing_address:
+        address.append("links", {
+            "link_doctype": "Lead",
+            "link_name": lead_name,
+            "link_title": lead_title,
+        })
+
+    if existing_address:
+        address.save(ignore_permissions=True)
+    else:
+        address.insert(ignore_permissions=True)
